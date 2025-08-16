@@ -23,7 +23,9 @@ class GigabyteServerQVLCrawler:
             "General-Purpose-Server", 
             "GPU-Server",
             "AI-Server",
-            "High-Density-Server"
+            "High-Density-Server",
+            "Storage-Server",
+            "Edge-Server"
         ]
         self.driver = None
         self.request_count = 0
@@ -70,6 +72,21 @@ class GigabyteServerQVLCrawler:
         ]
         return server_models
     
+    def get_category_from_model(self, server_model):
+        """Get server category based on first character of model name"""
+        first_char = server_model[0].upper()
+        
+        category_mapping = {
+            'G': 'GPU-Server',
+            'R': 'Rack-Server', 
+            'H': 'High-Density-Server',
+            'S': 'Storage-Server',
+            'X': 'Rack-Server',
+            'E': 'Edge-Server'
+        }
+        
+        return category_mapping.get(first_char, 'General-Purpose-Server')
+    
     def setup_selenium_driver(self):
         """Setup Selenium WebDriver - SAME AS test_qvl_detection()"""
         if self.driver is None:
@@ -112,42 +129,83 @@ class GigabyteServerQVLCrawler:
             return str(value)
     
     def check_server_exists(self, server_model):
-        """FIXED: Use EXACT SAME algorithm as test_qvl_detection() with delays"""
+        """Improved URL generation with efficient categorization, redirect detection, and version suffix fallback"""
         print(f"Checking server: {server_model}")
         
         if self.driver is None:
             self.setup_selenium_driver()
         
-        # Try all combinations of base_url and category - SAME AS test_qvl_detection()
+        category = self.get_category_from_model(server_model)
+        print(f"  Determined category: {category} (based on first character '{server_model[0]}')")
+        
         for base_url in self.base_urls:
-            for category in self.categories:
-                test_url = f"{base_url}/{category}/{server_model}"
-                print(f"  Testing: {test_url}")
+            test_url = f"{base_url}/{category}/{server_model}"
+            print(f"  Testing: {test_url}")
+            
+            try:
+                self.driver.get(test_url)
+                
+                # Add delay between requests
+                delay = random.uniform(2, 4)
+                print(f"    Waiting {delay:.1f} seconds...")
+                time.sleep(delay)
+                
+                current_url = self.driver.current_url
+                if current_url != test_url:
+                    print(f"    Redirected to: {current_url}")
+                
+                page_source = self.driver.page_source
+                has_qvl = self.has_qvl(page_source)
+                
+                print(f"    Page loaded: YES")
+                print(f"    Has 'QVL' in content: {'YES' if has_qvl else 'NO'}")
+                
+                if has_qvl:
+                    lines = page_source.split('\n')
+                    qvl_lines = [line.strip() for line in lines if 'QVL' in line]
+                    print(f"    QVL references found: {len(qvl_lines)}")
+                    
+                    print(f"  ✓ FOUND (has QVL): {current_url}")
+                    return current_url, category
+                else:
+                    print(f"    No QVL found in page content")
+                    
+            except Exception as e:
+                print(f"    Error: {e}")
+                continue
+        
+        print(f"  Base URL not found, trying version suffixes...")
+        version_suffixes = ['-rev-3x', '-rev-1x']
+        
+        for base_url in self.base_urls:
+            for suffix in version_suffixes:
+                test_url = f"{base_url}/{category}/{server_model}{suffix}"
+                print(f"  Testing with suffix: {test_url}")
                 
                 try:
-                    # SAME AS test_qvl_detection() - simple approach
                     self.driver.get(test_url)
                     
-                    # Add delay between requests - this was missing in test_qvl_detection()
                     delay = random.uniform(2, 4)
                     print(f"    Waiting {delay:.1f} seconds...")
                     time.sleep(delay)
                     
-                    # EXACT SAME logic as test_qvl_detection()
+                    current_url = self.driver.current_url
+                    if current_url != test_url:
+                        print(f"    Redirected to: {current_url}")
+                    
                     page_source = self.driver.page_source
                     has_qvl = self.has_qvl(page_source)
                     
                     print(f"    Page loaded: YES")
                     print(f"    Has 'QVL' in content: {'YES' if has_qvl else 'NO'}")
                     
-                    # Show some context around QVL if found - SAME AS test_qvl_detection()
                     if has_qvl:
                         lines = page_source.split('\n')
                         qvl_lines = [line.strip() for line in lines if 'QVL' in line]
                         print(f"    QVL references found: {len(qvl_lines)}")
                         
-                        print(f"  ? FOUND (has QVL): {test_url}")
-                        return test_url, category
+                        print(f"  ✓ FOUND with suffix (has QVL): {current_url}")
+                        return current_url, category
                     else:
                         print(f"    No QVL found in page content")
                         
@@ -158,7 +216,7 @@ class GigabyteServerQVLCrawler:
                 # Small delay between different URL attempts
                 time.sleep(1)
         
-        print(f"  ? NOT FOUND: {server_model}")
+        print(f"  ✗ NOT FOUND: {server_model}")
         return None, None
     
     def save_valid_servers_csv(self, found_servers):
