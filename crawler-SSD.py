@@ -71,12 +71,16 @@ class GigabyteServerQVLCrawler:
         return server_models
     
     def setup_selenium_driver(self):
-        """Setup Selenium WebDriver - SAME AS test_qvl_detection()"""
+        """Setup Selenium WebDriver with headless configuration"""
         if self.driver is None:
             options = Options()
+            options.add_argument("--headless")
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--disable-gpu")
             options.add_argument("--disable-blink-features=AutomationControlled")
+            options.add_argument("--window-size=1920,1080")
+            options.add_argument(f"--user-data-dir=/tmp/chrome_user_data_{random.randint(1000, 9999)}")
             options.add_experimental_option("excludeSwitches", ["enable-automation"])
             options.add_experimental_option('useAutomationExtension', False)
             
@@ -533,11 +537,11 @@ class GigabyteServerQVLCrawler:
                 print(f"  Error: {e}")
     
     def run_full_crawl(self, max_servers=None):
-        """Run the complete crawling process using same algorithm as test_qvl_detection()"""
+        """Run the complete crawling process using sequential flow: detect URL → crawl QVL → next server"""
         
         print("="*80)
-        print("GIGABYTE SERVER QVL CRAWLER - USING test_qvl_detection() ALGORITHM")
-        print("Phase 1: CSV for valid servers | Phase 2: CSV batches | Final: CSV files")
+        print("GIGABYTE SERVER QVL CRAWLER - SEQUENTIAL FLOW")
+        print("Sequential: Detect server URL → If valid, crawl QVL → Move to next server")
         print("="*80)
         
         server_models = self.get_converted_server_list()
@@ -548,17 +552,20 @@ class GigabyteServerQVLCrawler:
         
         print(f"Total servers to process: {len(server_models)}")
         
-        # Phase 1: Find valid server URLs using SAME algorithm as test_qvl_detection()
-        print("\nPHASE 1: DISCOVERING SERVER URLS (SAME AS test_qvl_detection())")
-        print("-"*50)
-        
         found_servers = []
-        valid_server_urls = []
+        all_qvl_data = []
+        all_trusta_matches = []
+        batch_size = 10
+        current_batch_data = []
+        batch_files = []
+        valid_servers_count = 0
+        
+        print("\nSEQUENTIAL PROCESSING: Detect → Crawl → Next")
+        print("-"*50)
         
         for i, server_model in enumerate(server_models, 1):
             print(f"\n[{i}/{len(server_models)}] Processing: {server_model}")
             
-            # Use the SAME algorithm as test_qvl_detection() - this was the fix!
             server_url, category = self.check_server_exists(server_model)
             
             if server_url:
@@ -569,8 +576,32 @@ class GigabyteServerQVLCrawler:
                     'Status': 'Found'
                 }
                 found_servers.append(server_info)
-                valid_server_urls.append((server_model, server_url))
-                print(f"  ? Added to crawl list: {server_model}")
+                valid_servers_count += 1
+                
+                print(f"  ✓ Server found: {server_model}")
+                print(f"  → Immediately crawling QVL data...")
+                
+                qvl_data = self.crawl_server_qvl(server_url, server_model)
+                all_qvl_data.extend(qvl_data)
+                current_batch_data.extend(qvl_data)
+                
+                print(f"  ✓ QVL crawling completed: {len(qvl_data)} entries")
+                
+                if qvl_data:
+                    matches = self.search_trusta_in_data(qvl_data)
+                    if matches:
+                        all_trusta_matches.extend(matches)
+                        print(f"  🎯 TRUSTA/T7P5 matches found: {len(matches)}")
+                        for match in matches:
+                            has_trusta = match.get('Has_TRUSTA', False)
+                            has_t7p5 = match.get('Has_T7P5', False)
+                            products = []
+                            if has_trusta:
+                                products.append("TRUSTA")
+                            if has_t7p5:
+                                products.append("T7P5")
+                            print(f"    → {'/'.join(products)} found in {server_model}")
+                
             else:
                 found_servers.append({
                     'Server_Model': server_model,
@@ -578,94 +609,66 @@ class GigabyteServerQVLCrawler:
                     'Category': '',
                     'Status': 'Not Found'
                 })
-                print(f"  ? Skipped: {server_model}")
+                print(f"  ✗ Server not found: {server_model}")
+            
+            # Step 4: Save batch CSV every 10 servers or at the end
+            if valid_servers_count > 0 and (valid_servers_count % batch_size == 0 or i == len(server_models)):
+                batch_number = (valid_servers_count + batch_size - 1) // batch_size
+                total_batches = (len(server_models) + batch_size - 1) // batch_size
+                
+                if current_batch_data:
+                    print(f"\n📊 SAVING CSV BATCH {batch_number}...")
+                    print("-"*30)
+                    
+                    batch_file, batch_matches = self.save_qvl_data_batch_csv(
+                        current_batch_data, 
+                        batch_number, 
+                        total_batches
+                    )
+                    
+                    if batch_file:
+                        batch_files.append(batch_file)
+                        print(f"  ✓ Batch saved: {batch_file}")
+                    
+                    current_batch_data = []
+            
+            print(f"  📈 Progress: {i}/{len(server_models)} servers | {valid_servers_count} valid | {len(all_trusta_matches)} matches")
         
-        print(f"\nPhase 1 Complete: Found {len(valid_server_urls)} valid servers out of {len(server_models)}")
-        
-        # Save valid servers list as CSV after Phase 1
-        print("\n?? SAVING VALID SERVERS LIST AS CSV...")
-        print("-"*40)
-        valid_servers_csv = self.save_valid_servers_csv(found_servers)
-        
-        if not valid_server_urls:
-            print("? No valid servers found. Ending crawl.")
-            return found_servers, [], []
-        
-        # Phase 2: Crawl QVL data with CSV batch saving every 10 servers
-        print("\nPHASE 2: CRAWLING QVL DATA (CSV BATCH SAVING)")
+        print(f"\n📋 SEQUENTIAL PROCESSING COMPLETE")
         print("-"*50)
-        
-        all_qvl_data = []
-        all_trusta_matches = []
-        batch_size = 10
-        total_batches = (len(valid_server_urls) + batch_size - 1) // batch_size
-        current_batch_data = []
-        batch_files = []
-        
-        print(f"Will save QVL data as CSV every {batch_size} servers ({total_batches} batches total)")
-        
-        for i, (server_model, server_url) in enumerate(valid_server_urls, 1):
-            print(f"\n[{i}/{len(valid_server_urls)}] Crawling QVL for: {server_model}")
-            print(f"  Server URL: {server_url}")
-            
-            qvl_data = self.crawl_server_qvl(server_url, server_model)
-            all_qvl_data.extend(qvl_data)
-            current_batch_data.extend(qvl_data)
-            
-            print(f"  ? Completed {server_model}: {len(qvl_data)} entries")
-            
-            # Save batch as CSV every 10 servers or at the end
-            if i % batch_size == 0 or i == len(valid_server_urls):
-                batch_number = (i + batch_size - 1) // batch_size
-                print(f"\n?? SAVING CSV BATCH {batch_number}/{total_batches}...")
-                print("-"*30)
-                
-                batch_file, batch_matches = self.save_qvl_data_batch_csv(
-                    current_batch_data, 
-                    batch_number, 
-                    total_batches
-                )
-                
-                if batch_file:
-                    batch_files.append(batch_file)
-                
-                if batch_matches:
-                    all_trusta_matches.extend(batch_matches)
-                    print(f"?? Found {len(batch_matches)} TRUSTA/T7P5 matches in batch {batch_number}!")
-                
-                current_batch_data = []
-                print(f"?? Progress: {i}/{len(valid_server_urls)} servers completed")
-        
-        # Phase 3: Save final consolidated CSV files
-        print("\nPHASE 3: SAVING FINAL CONSOLIDATED CSV FILES")
-        print("-"*50)
-        
+        print(f"Total servers processed: {len(server_models)}")
+        print(f"Valid servers found: {valid_servers_count}")
         print(f"Total QVL entries collected: {len(all_qvl_data)}")
         print(f"Total TRUSTA/T7P5 matches found: {len(all_trusta_matches)}")
         
-        print("\n?? CREATING FINAL CSV FILES...")
+        # Save valid servers list
+        print("\n💾 SAVING FINAL CSV FILES...")
         print("-"*40)
+        valid_servers_csv = self.save_valid_servers_csv(found_servers)
+        
+        # Save final consolidated CSV files
         final_csv_files = self.save_final_results_csv(all_qvl_data, all_trusta_matches, found_servers)
         
         # Final summary
         print("\n" + "="*80)
-        print("FINAL SUMMARY - FIXED SERVER DETECTION")
+        print("FINAL SUMMARY - SEQUENTIAL FLOW COMPLETED")
         print("="*80)
         print(f"Total servers processed: {len(server_models)}")
-        print(f"Valid servers found: {len(valid_server_urls)}")
+        print(f"Valid servers found: {valid_servers_count}")
+        print(f"Success rate: {(valid_servers_count/len(server_models)*100):.1f}%")
         print(f"Total QVL entries collected: {len(all_qvl_data)}")
         print(f"TRUSTA/T7P5 matches found: {len(all_trusta_matches)}")
         print(f"CSV batch files created: {len(batch_files)}")
         
-        print(f"\n?? FILES CREATED:")
-        print(f"?? Phase 1 - Valid servers (CSV): {valid_servers_csv}")
-        print(f"?? Phase 2 - QVL data batches (CSV): {len(batch_files)} files")
-        print(f"?? Final - Multiple CSV files: {len(final_csv_files)} files")
+        print(f"\n📁 FILES CREATED:")
+        print(f"  📊 Valid servers list: {valid_servers_csv}")
+        print(f"  📦 QVL data batches: {len(batch_files)} files")
+        print(f"  📋 Final consolidated files: {len(final_csv_files)} files")
         for file_type, filename in final_csv_files:
-            print(f"    {file_type}: {filename}")
+            print(f"    • {file_type}: {filename}")
         
         if all_trusta_matches:
-            print(f"\n?? TRUSTA/T7P5 MATCHES SUMMARY:")
+            print(f"\n🎯 TRUSTA/T7P5 MATCHES SUMMARY:")
             print("-"*60)
             
             server_matches = {}
@@ -684,10 +687,10 @@ class GigabyteServerQVLCrawler:
                 print(f"     T7P5 matches: {counts['T7P5']}")
                 print(f"     Total matches: {counts['TRUSTA'] + counts['T7P5']}")
         else:
-            print("\n? No TRUSTA/T7P5 products found in any server QVL")
+            print("\n❌ No TRUSTA/T7P5 products found in any server QVL")
         
-        print(f"\n? All CSV files saved successfully!")
-        print(f"?? Check the final CSV files for detailed analysis")
+        print(f"\n✅ Sequential crawling completed successfully!")
+        print(f"📊 All CSV files saved for detailed analysis")
         
         return found_servers, all_qvl_data, all_trusta_matches
     
@@ -709,11 +712,11 @@ def main():
         #if response.lower() == 'q':
         #    return
         
-        # Run full crawl using same algorithm as test_qvl_detection()
-        found_servers, qvl_data, matches = crawler.run_full_crawl( )  # Test with 15 servers
+        # Run full crawl using sequential flow: detect → crawl → next
+        found_servers, qvl_data, matches = crawler.run_full_crawl(5)  # Test with 5 servers first
         
-        print("\nFull crawling completed successfully!")
-        print("?? All results saved as CSV files using the same reliable algorithm")
+        print("\nSequential crawling completed successfully!")
+        print("✅ All results saved as CSV files using the new sequential flow")
         
     except KeyboardInterrupt:
         print("\nProcess interrupted by user")
