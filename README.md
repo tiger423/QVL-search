@@ -31,7 +31,7 @@ flowchart TD
     G -->|H| H3[High-Density-Server]
     G -->|S| H4[Storage-Server]
     G -->|X| H5[Rack-Server]
-    G -->|E| H6[Edge-Server]
+    G -->|E| H6[Rack-Server]
     G -->|Other| H7[General-Purpose-Server]
     
     H1 --> I[Generate Base URL]
@@ -107,7 +107,7 @@ The crawler automatically categorizes servers based on their model's first chara
 | **H** | High-Density-Server | H263-S66-AAW1 |
 | **S** | Storage-Server | S123-TEST |
 | **X** | Rack-Server | X456-TEST |
-| **E** | Edge-Server | E789-TEST |
+| **E** | Rack-Server | E789-TEST |
 | **Other** | General-Purpose-Server | Z999-TEST |
 
 ## 📁 Output Files

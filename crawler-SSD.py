@@ -82,7 +82,7 @@ class GigabyteServerQVLCrawler:
             'H': 'High-Density-Server',
             'S': 'Storage-Server',
             'X': 'Rack-Server',
-            'E': 'Edge-Server'
+            'E': 'Rack-Server'
         }
         
         return category_mapping.get(first_char, 'General-Purpose-Server')
@@ -260,8 +260,51 @@ class GigabyteServerQVLCrawler:
             traceback.print_exc()
             return None
     
+    def map_html_fields_to_csv(self, item):
+        """Map HTML table fields to the 12 required CSV fields"""
+        mapped_row = {}
+        
+        mapped_row['Server_Model'] = item.get('Server_Model', '')
+        mapped_row['Server_URL'] = item.get('Server_URL', '')
+        mapped_row['QVL_URL'] = item.get('QVL_URL', '')
+        
+        if item.get('Server_Model'):
+            mapped_row['Server_Category'] = self.get_category_from_model(item.get('Server_Model'))
+        else:
+            mapped_row['Server_Category'] = ''
+        
+        field_mappings = {
+            'Capacity': ['Capacity', 'Size', 'Storage', 'GB', 'TB'],
+            'Type': ['Type', 'Product Type', 'Category'],
+            'Vendor': ['Vendor', 'Brand', 'Manufacturer', 'Company'],
+            'Product Name': ['Product Name', 'Model', 'Product', 'Name', 'Part Number'],
+            'Series': ['Series', 'Product Series', 'Family'],
+            'Form Factor': ['Form Factor', 'Format', 'FF'],
+            'Interface': ['Interface', 'Connection', 'Connector'],
+            'Interface Speed': ['Interface Speed', 'Speed', 'Transfer Rate', 'Bandwidth']
+        }
+        
+        for required_field in field_mappings.keys():
+            mapped_row[required_field] = ''
+        
+        for html_field, value in item.items():
+            if html_field in ['Server_Model', 'Server_URL', 'QVL_URL', 'Table_Number', 'Row_Number']:
+                continue
+                
+            html_field_upper = html_field.upper()
+            value_str = str(value).strip() if value else ''
+            
+            for required_field, variations in field_mappings.items():
+                for variation in variations:
+                    if variation.upper() in html_field_upper:
+                        if not mapped_row[required_field]:
+                            mapped_row[required_field] = value_str
+                        break
+        
+        return mapped_row
+
     def save_qvl_data_batch_csv(self, all_qvl_data, batch_number, total_batches):
-        """Save QVL data every 10 servers as CSV"""
+        """Save QVL data every 10 servers as CSV with 12 required fields"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"qvl_data_batch_{batch_number}_of_{total_batches}_{timestamp}.csv"
         
@@ -274,41 +317,22 @@ class GigabyteServerQVLCrawler:
             
             trusta_matches = self.search_trusta_in_data(all_qvl_data)
             
+            required_fieldnames = [
+                'Capacity', 'Type', 'Vendor', 'Product Name', 'QVL_URL', 'Series', 
+                'Server_Model', 'Server_Category', 'Server_URL', 'Form Factor', 
+                'Interface', 'Interface Speed'
+            ]
+            
             with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                all_fields = set()
-                for item in all_qvl_data:
-                    all_fields.update(item.keys())
-                
-                all_fields.update(['Batch_Number', 'Total_Batches', 'Save_Timestamp', 'Has_TRUSTA_Match', 'Has_T7P5_Match'])
-                
-                fieldnames = sorted(list(all_fields))
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                
+                writer = csv.DictWriter(csvfile, fieldnames=required_fieldnames)
                 writer.writeheader()
                 
                 for item in all_qvl_data:
+                    mapped_row = self.map_html_fields_to_csv(item)
+                    
                     clean_row = {}
-                    
-                    for field in fieldnames:
-                        value = item.get(field, '')
-                        clean_row[field] = self.clean_value_for_csv(value)
-                    
-                    clean_row['Batch_Number'] = str(batch_number)
-                    clean_row['Total_Batches'] = str(total_batches)
-                    clean_row['Save_Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    has_trusta = False
-                    has_t7p5 = False
-                    for match in trusta_matches:
-                        if (match.get('Server_Model') == item.get('Server_Model') and
-                            match.get('Table_Number') == item.get('Table_Number') and
-                            match.get('Row_Number') == item.get('Row_Number')):
-                            has_trusta = match.get('Has_TRUSTA', False)
-                            has_t7p5 = match.get('Has_T7P5', False)
-                            break
-                    
-                    clean_row['Has_TRUSTA_Match'] = str(has_trusta)
-                    clean_row['Has_T7P5_Match'] = str(has_t7p5)
+                    for field in required_fieldnames:
+                        clean_row[field] = self.clean_value_for_csv(mapped_row.get(field, ''))
                     
                     writer.writerow(clean_row)
             
@@ -422,27 +446,28 @@ class GigabyteServerQVLCrawler:
         
         files_created = []
         
+        required_fieldnames = [
+            'Capacity', 'Type', 'Vendor', 'Product Name', 'QVL_URL', 'Series', 
+            'Server_Model', 'Server_Category', 'Server_URL', 'Form Factor', 
+            'Interface', 'Interface Speed'
+        ]
+        
         # 1. All QVL Data CSV
         if all_data:
             all_data_file = f"final_all_qvl_data_{timestamp}.csv"
             try:
-                clean_all_data = self.clean_data_for_csv(all_data)
-                
                 with open(all_data_file, 'w', newline='', encoding='utf-8') as csvfile:
-                    if clean_all_data:
-                        all_fields = set()
-                        for item in clean_all_data:
-                            all_fields.update(item.keys())
+                    writer = csv.DictWriter(csvfile, fieldnames=required_fieldnames)
+                    writer.writeheader()
+                    
+                    for item in all_data:
+                        mapped_row = self.map_html_fields_to_csv(item)
                         
-                        fieldnames = sorted(list(all_fields))
-                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                        writer.writeheader()
+                        clean_row = {}
+                        for field in required_fieldnames:
+                            clean_row[field] = self.clean_value_for_csv(mapped_row.get(field, ''))
                         
-                        for item in clean_all_data:
-                            clean_row = {}
-                            for field in fieldnames:
-                                clean_row[field] = self.clean_value_for_csv(item.get(field, ''))
-                            writer.writerow(clean_row)
+                        writer.writerow(clean_row)
                 
                 files_created.append(('All QVL Data', all_data_file))
                 print(f"? All QVL data saved to CSV: {all_data_file}")
@@ -454,23 +479,18 @@ class GigabyteServerQVLCrawler:
         if trusta_matches:
             matches_file = f"final_trusta_t7p5_matches_{timestamp}.csv"
             try:
-                clean_matches = self.clean_data_for_csv(trusta_matches)
-                
                 with open(matches_file, 'w', newline='', encoding='utf-8') as csvfile:
-                    if clean_matches:
-                        all_fields = set()
-                        for item in clean_matches:
-                            all_fields.update(item.keys())
+                    writer = csv.DictWriter(csvfile, fieldnames=required_fieldnames)
+                    writer.writeheader()
+                    
+                    for item in trusta_matches:
+                        mapped_row = self.map_html_fields_to_csv(item)
                         
-                        fieldnames = sorted(list(all_fields))
-                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                        writer.writeheader()
+                        clean_row = {}
+                        for field in required_fieldnames:
+                            clean_row[field] = self.clean_value_for_csv(mapped_row.get(field, ''))
                         
-                        for item in clean_matches:
-                            clean_row = {}
-                            for field in fieldnames:
-                                clean_row[field] = self.clean_value_for_csv(item.get(field, ''))
-                            writer.writerow(clean_row)
+                        writer.writerow(clean_row)
                 
                 files_created.append(('TRUSTA/T7P5 Matches', matches_file))
                 print(f"? TRUSTA/T7P5 matches saved to CSV: {matches_file}")

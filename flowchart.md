@@ -14,7 +14,7 @@ flowchart TD
     G -->|H| H3[High-Density-Server]
     G -->|S| H4[Storage-Server]
     G -->|X| H5[Rack-Server]
-    G -->|E| H6[Edge-Server]
+    G -->|E| H6[Rack-Server]
     G -->|Other| H7[General-Purpose-Server]
     
     H1 --> I[Generate Base URL]
