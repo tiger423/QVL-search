@@ -1,4 +1,159 @@
-# QVL-search
-search vendor web site to see specific products are on the QVL or not
+# QVL-Search: Gigabyte Server QVL Crawler
 
-this program is tested with python 3.9
+A Python web crawler designed to check Gigabyte's website for server QVL (Qualified Vendor List) compatibility with SSDs, specifically targeting **TRUSTA** and **T7P5** products.
+
+## 🚀 Features
+
+### Ver4 (Latest) - Smart URL Generation
+- **🎯 Character-Based Categorization**: Efficiently determines server category from model's first character
+- **🔄 Redirect Detection**: Automatically detects and logs final URLs after redirects
+- **🔧 Version Suffix Fallback**: Tries `-rev-3x` and `-rev-1x` suffixes when base URL fails
+- **⚡ Performance**: ~60-70% reduction in HTTP requests compared to brute-force approach
+
+### Ver3 - Sequential Flow
+- **🔄 Sequential Processing**: Detect server URL → If valid, crawl QVL → Move to next server
+- **💾 Memory Efficient**: Processes servers individually instead of batch loading
+- **🖥️ Cross-Platform**: Windows and Linux compatible Chrome driver configuration
+
+## 📊 Crawler Flow
+
+```mermaid
+flowchart TD
+    A[Start: QVL-Search Crawler] --> B[Initialize GigabyteServerQVLCrawler]
+    B --> C[Load Server Models List]
+    C --> D[Setup Sequential Processing]
+    D --> E[For Each Server Model]
+    
+    E --> F[Get Category from First Character]
+    F --> G{Character Mapping}
+    G -->|G| H1[GPU-Server]
+    G -->|R| H2[Rack-Server]
+    G -->|H| H3[High-Density-Server]
+    G -->|S| H4[Storage-Server]
+    G -->|X| H5[Rack-Server]
+    G -->|E| H6[Edge-Server]
+    G -->|Other| H7[General-Purpose-Server]
+    
+    H1 --> I[Generate Base URL]
+    H2 --> I
+    H3 --> I
+    H4 --> I
+    H5 --> I
+    H6 --> I
+    H7 --> I
+    
+    I --> J[Test Base URL with Category]
+    J --> K{URL Exists & Has QVL?}
+    
+    K -->|Yes| L[Check for Redirects]
+    L --> M[Log Final URL]
+    M --> N[Crawl QVL Data]
+    
+    K -->|No| O[Try Version Suffix: -rev-3x]
+    O --> P{URL Exists & Has QVL?}
+    P -->|Yes| L
+    P -->|No| Q[Try Version Suffix: -rev-1x]
+    Q --> R{URL Exists & Has QVL?}
+    R -->|Yes| L
+    R -->|No| S[Mark Server as Not Found]
+    
+    N --> T[Extract QVL Table Data]
+    T --> U[Search for TRUSTA/T7P5 Matches]
+    U --> V[Save QVL Data to Batch]
+    V --> W[Update Progress Counters]
+    
+    S --> W
+    W --> X{More Servers?}
+    X -->|Yes| E
+    X -->|No| Y[Save Final Results]
+    
+    Y --> Z1[Save Valid Servers CSV]
+    Z1 --> Z2[Save QVL Data Batches CSV]
+    Z2 --> Z3[Save TRUSTA/T7P5 Matches CSV]
+    Z3 --> Z4[Save Summary Statistics CSV]
+    Z4 --> AA[End: Display Results Summary]
+```
+
+## 🛠️ Technical Stack
+
+- **Python 3.9+** (tested)
+- **Selenium WebDriver** - Browser automation
+- **BeautifulSoup4** - HTML parsing
+- **Pandas** - Data processing
+- **Chrome/Chromium** - Headless browser
+
+## 📦 Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/tiger423/QVL-search.git
+cd QVL-search
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the crawler
+python crawler-SSD.py
+```
+
+## 🎯 Server Categorization (Ver4)
+
+The crawler automatically categorizes servers based on their model's first character:
+
+| First Character | Category | Example |
+|----------------|----------|---------|
+| **G** | GPU-Server | G293-S40-AAP1 |
+| **R** | Rack-Server | R183-S95-AAD1 |
+| **H** | High-Density-Server | H263-S66-AAW1 |
+| **S** | Storage-Server | S123-TEST |
+| **X** | Rack-Server | X456-TEST |
+| **E** | Edge-Server | E789-TEST |
+| **Other** | General-Purpose-Server | Z999-TEST |
+
+## 📁 Output Files
+
+The crawler generates several CSV files:
+
+1. **`valid_servers_list_*.csv`** - List of servers with valid QVL pages
+2. **`qvl_data_batch_*.csv`** - Raw QVL data extracted from tables
+3. **`trusta_t7p5_matches_*.csv`** - Servers with TRUSTA/T7P5 compatibility
+4. **`final_summary_statistics_*.csv`** - Summary statistics and counts
+
+## 🔧 Configuration
+
+Key parameters in `crawler-SSD.py`:
+
+- **Base URLs**: Gigabyte Enterprise server pages
+- **Server Models**: Comprehensive list of Gigabyte server models
+- **Rate Limiting**: Random delays (2-4 seconds) between requests
+- **Batch Size**: Configurable QVL data batch processing
+
+## 📈 Performance Improvements
+
+### Ver4 vs Ver3 Efficiency
+- **Ver3**: Brute-force approach (10-14 HTTP requests per server)
+- **Ver4**: Smart categorization (2-6 HTTP requests per server)
+- **Improvement**: ~60-70% reduction in network requests
+
+## 🐛 Troubleshooting
+
+### Chrome Driver Issues
+- Ensure Chrome/Chromium is installed
+- Check Chrome driver compatibility with your Chrome version
+- For Windows: Use the ver3+ branch for compatibility fixes
+
+### Network Issues
+- The crawler includes rate limiting to avoid being blocked
+- Random delays between requests help prevent detection
+- Retry logic handles temporary network failures
+
+## 📝 Version History
+
+- **Ver4**: Smart URL generation with character-based categorization
+- **Ver3**: Sequential flow processing + Windows Chrome driver fix
+- **Ver2**: Basic crawler with batch processing
+- **Ver1**: Initial implementation
+
+## 🤝 Contributing
+
+This program is tested with Python 3.9. Feel free to submit issues or pull requests for improvements.
