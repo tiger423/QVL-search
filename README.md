@@ -40,15 +40,11 @@ pip install -r requirements.txt
 python crawler-SSD.py
 ```
 
-###To run the code under virtual enviroment 
+## 📝 To run the code under virtual enviroment in Windows
 
-###Windows:
+git clone https://github.com/tiger423/QVL-search.git        # clone the codes
 
-
-
-git clone https://github.com/tiger423/QVL-search.git    # clone the codes
-
-cd QVL-search                                           # get into the code folder
+cd QVL-search                                               # get into the code folder
 
 python -m venv my-venv    # create a virtual environment called my-venv (can be whatever name you like)
 
