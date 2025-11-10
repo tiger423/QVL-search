@@ -96,6 +96,27 @@ pip install -r requirements.txt
 python crawler-SSD.py
 ```
 
+To run the code under virtual enviroment 
+Windows:
+
+
+
+git clone https://github.com/tiger423/QVL-search.git    # clone the codes
+cd QVL-search                                           # get into the code folder
+
+python -m venv my-venv    # create a virtual environment called my-venv (can be whatever name you like)
+
+my-venv\scripts\activate  # activate crawler virtual environment
+
+# still inside QVL-search folder
+# since my-venv is activated, this pip is from my-venv\scripts\pip.exe. all packages will be installed 
+# in QVL-search\my-venv\Lib\site-packages
+pip install -r requirements.txt 
+
+python crawler-SSD.py
+
+
+
 ## 🎯 Server Categorization (Ver4)
 
 The crawler automatically categorizes servers based on their model's first character:
