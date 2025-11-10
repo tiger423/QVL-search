@@ -57,9 +57,10 @@ pip install -r requirements.txt # this pip is from my-venv\scripts\pip.exe
 python crawler-SSD.py   # this python is from my-venv\scripts\python.exe. It default only run 5 models.
 
 if want to run all, modify below code in crawler-SSD.py
-found_servers, qvl_data, matches = crawler.run_full_crawl(5)  change to below
 
-found_servers, qvl_data, matches = crawler.run_full_crawl( )
+original code ---->  found_servers, qvl_data, matches = crawler.run_full_crawl(5)  
+
+change to ----> found_servers, qvl_data, matches = crawler.run_full_crawl( )
 
 ## 🎯 Server Categorization (Ver4)
 
