@@ -17,62 +17,6 @@ A Python web crawler designed to check Gigabyte's website for server QVL (Qualif
 
 ## 📊 Crawler Flow
 
-```mermaid
-flowchart TD
-    A[Start: QVL-Search Crawler] --> B[Initialize GigabyteServerQVLCrawler]
-    B --> C[Load Server Models List]
-    C --> D[Setup Sequential Processing]
-    D --> E[For Each Server Model]
-    
-    E --> F[Get Category from First Character]
-    F --> G{Character Mapping}
-    G -->|G| H1[GPU-Server]
-    G -->|R| H2[Rack-Server]
-    G -->|H| H3[High-Density-Server]
-    G -->|S| H4[Storage-Server]
-    G -->|X| H5[Rack-Server]
-    G -->|E| H6[Rack-Server]
-    G -->|Other| H7[General-Purpose-Server]
-    
-    H1 --> I[Generate Base URL]
-    H2 --> I
-    H3 --> I
-    H4 --> I
-    H5 --> I
-    H6 --> I
-    H7 --> I
-    
-    I --> J[Test Base URL with Category]
-    J --> K{URL Exists & Has QVL?}
-    
-    K -->|Yes| L[Check for Redirects]
-    L --> M[Log Final URL]
-    M --> N[Crawl QVL Data]
-    
-    K -->|No| O[Try Version Suffix: -rev-3x]
-    O --> P{URL Exists & Has QVL?}
-    P -->|Yes| L
-    P -->|No| Q[Try Version Suffix: -rev-1x]
-    Q --> R{URL Exists & Has QVL?}
-    R -->|Yes| L
-    R -->|No| S[Mark Server as Not Found]
-    
-    N --> T[Extract QVL Table Data]
-    T --> U[Search for TRUSTA/T7P5 Matches]
-    U --> V[Save QVL Data to Batch]
-    V --> W[Update Progress Counters]
-    
-    S --> W
-    W --> X{More Servers?}
-    X -->|Yes| E
-    X -->|No| Y[Save Final Results]
-    
-    Y --> Z1[Save Valid Servers CSV]
-    Z1 --> Z2[Save QVL Data Batches CSV]
-    Z2 --> Z3[Save TRUSTA/T7P5 Matches CSV]
-    Z3 --> Z4[Save Summary Statistics CSV]
-    Z4 --> AA[End: Display Results Summary]
-```
 
 ## 🛠️ Technical Stack
 
