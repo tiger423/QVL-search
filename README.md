@@ -40,9 +40,9 @@ pip install -r requirements.txt
 python crawler-SSD.py
 ```
 
-#To run the code under virtual enviroment 
+##To run the code under virtual enviroment 
 
-#Windows:
+##Windows:
 
 
 
