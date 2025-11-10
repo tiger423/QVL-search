@@ -50,11 +50,11 @@ python -m venv my-venv    # create a virtual environment called my-venv (can be 
 
 my-venv\scripts\activate  # activate crawler virtual environment
 
-## 📝 since my-venv is activated, this pip is from my-venv\scripts\pip.exe. all packages will be installed in QVL-search\my-venv\Lib\site-packages
+## 📝 since my-venv is activated, . all packages will be installed in QVL-search\my-venv\Lib\site-packages
 
-pip install -r requirements.txt 
+pip install -r requirements.txt # this pip is from my-venv\scripts\pip.exe
 
-python crawler-SSD.py
+python crawler-SSD.py   # this python is from my-venv\scripts\python.exe. It default only run 5 models.
 
 
 
