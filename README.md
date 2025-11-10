@@ -50,9 +50,7 @@ python -m venv my-venv    # create a virtual environment called my-venv (can be 
 
 my-venv\scripts\activate  # activate crawler virtual environment
 
-## 📝 still inside QVL-search folder
-## 📝 since my-venv is activated, this pip is from my-venv\scripts\pip.exe. all packages will be installed 
-## 📝 in QVL-search\my-venv\Lib\site-packages
+## 📝 since my-venv is activated, this pip is from my-venv\scripts\pip.exe. all packages will be installed in QVL-search\my-venv\Lib\site-packages
 
 pip install -r requirements.txt 
 
